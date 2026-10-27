@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Sleek Auto</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Sleek Auto"><meta name="theme-color" content="#0b63e5">
+<link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="icon" type="image/png" href="favicon.png">
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--tx:#0f1720;--mu:#6b7280;--ac:#0b63e5;--bd:#e3e6eb;--ok:#0f9d58;padding-top:env(safe-area-inset-top,0px)}
+@media (prefers-color-scheme:dark){:root{--bg:#0d1117;--card:#161b22;--tx:#e8ecf1;--mu:#8b95a3;--ac:#4c9aff;--bd:#262d38;--ok:#34c37a}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 -apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:80px}
+header{padding:16px 18px 4px;display:flex;justify-content:space-between;align-items:center}
+h1{font-size:20px;margin:0;letter-spacing:.5px}h1 span{color:var(--ac)}.who{color:var(--mu);font-size:13px}
+main{padding:12px 16px;max-width:640px;margin:auto}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:12px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px}.mu{color:var(--mu);font-size:13px}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--mu);margin:18px 2px 8px}
+input,select{width:100%;padding:11px;margin:4px 0 8px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);color:var(--tx);font:inherit;font-size:16px;min-height:44px}
+button{background:var(--ac);color:#fff;border:0;border-radius:10px;padding:11px 16px;font:inherit;font-weight:600;cursor:pointer}
+button.g{background:transparent;color:var(--ac);padding:6px 8px}.big{width:100%}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);border-top:1px solid var(--bd);padding-bottom:env(safe-area-inset-bottom,0px)}
+nav button{flex:1;background:none;color:var(--mu);border-radius:0;padding:14px 0}nav button.on{color:var(--ac)}
+.stat{font-size:26px;font-weight:700}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tag{font-size:11px;padding:2px 8px;border-radius:20px;background:var(--bg);border:1px solid var(--bd)}.done{color:var(--ok)}
+#alert{display:none;background:var(--ac);color:#fff;padding:12px 16px;text-align:center;font-weight:600}
+</style></head><body>
+<div id="alert"></div>
+<header><h1>SLEEK <span>AUTO</span></h1><div class="who" id="who"></div></header>
+<div id="st" class="mu" style="padding:0 18px"></div>
+<main id="m">Loading…</main>
+<nav><button data-t="cal" class="on">Calendar</button><button data-t="log">Log Wash</button><button data-t="dash">Dashboard</button><button data-t="pay">Payroll</button></nav>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL="https://oorqygvsnbeshspqqfaz.supabase.co",SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9vcnF5Z3ZzbmJlc2hzcHFxZmF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIzMzgzNjMsImV4cCI6MjEwNzkxNDM2M30.fi6dp75NC0hxwR1e_i1JD7SSUXxoXGdq9kewOC8R7wM";
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const CARS={"Sedan 2-door":[70,30],"Sedan 4-door":[80,40],"SUV 4-door":[85,45],"Single cab pickup":[100,40],"Double cab pickup":[110,50],"Minivan":[120,50],"Van":[130,60],"Motorbike":[100,0,70]};
+const CH="Exterior + Chain clean & lube",SVC=["Exterior + Interior","Exterior","Interior",CH],STAFF={festus:"Festus",mateo:"Mateo"};
+const P=(c,s)=>{const a=CARS[c];return !a?0:s===CH?a[0]+(a[2]||0):s==="Exterior"?a[0]:s==="Interior"?a[1]:a[0]+a[1]};
+const ok=(c,s)=>s===CH?c==="Motorbike":(/Interior/.test(s)?c!=="Motorbike":true);
+const firstCar=s=>Object.keys(CARS).filter(c=>ok(c,s))[0];
+let bons=[],rcpts=[],ptab="festus",wkd=new Date().toISOString().slice(0,10),sel=new Date().toISOString().slice(0,7),me=null,isOwner=false,washes=[],paid={},tab="cal",seen=new Set(),first=true;
+const $=s=>document.querySelector(s),money=n=>"R"+(+n||0).toFixed(2),esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const today=()=>new Date().toISOString().slice(0,10),month=()=>today().slice(0,7);
+const opts=(s,v,blank)=>(blank?'<option value="">Car type (employee can set later)</option>':'')+Object.keys(CARS).filter(c=>ok(c,s)).map(c=>`<option value="${c}" ${v===c?"selected":""}>${c} (${money(P(c,s))})</option>`).join("");
+function refill(c,s,blank){const e=document.getElementById(c);e.innerHTML=opts(document.getElementById(s).value,e.value,blank)}
+function chg(id){refill("c"+id,"s"+id);pay(id)}
+function payTxt(w,c,s){const e=P(c,s)*.4/(w.crew||[1]).length;return isOwner?"Employee pay: "+money(e)+" each":"You earn "+money(e)+" + tip"}
+function pay(id){const w=washes.find(x=>x.id===id);$("#p"+id).textContent=payTxt(w,$("#c"+id).value,$("#s"+id).value)}
+function setSt(s){$("#st").innerHTML=s==="OK"?`<span class="done">●</span> Live · ${washes.length} wash${washes.length==1?"":"es"} · ${new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}`:'<span style="color:#d93025">● Offline, retrying…</span>'}
+async function boot(){const{data:{session}}=await sb.auth.getSession();session?enter(session.user.id):showLogin()}
+function showLogin(){$("#m").innerHTML=`<h2>Sign in</h2><div class="card"><input id="ln" placeholder="Name" autocapitalize="none"><input id="lp" type="password" placeholder="Password"><button class="big" onclick="doLogin()">Sign in</button><div id="le" class="mu"></div></div>`}
+async function doLogin(){const n=$("#ln").value.trim().toLowerCase();$("#le").textContent="Signing in…";const{error}=await sb.auth.signInWithPassword({email:n+"@sleekauto.app",password:$("#lp").value});if(error)$("#le").textContent="Wrong name or password.";else boot()}
+async function logout(){await sb.auth.signOut();location.reload()}
+async function enter(uid){
+  const{data:p}=await sb.from("profiles").select("*").eq("id",uid).single();
+  if(!p){$("#m").textContent="No profile for this login.";return}
+  me={key:p.key,name:p.name};isOwner=p.role==="owner";
+  $("#who").innerHTML=esc(me.name)+(isOwner?" · Owner":"")+' · <a href="#" onclick="logout();return false" style="color:var(--ac)">Log out</a>';
+  await load();
+  sb.channel("sa").on("postgres_changes",{event:"*",schema:"public",table:"washes"},pl=>{if(pl.eventType==="INSERT"&&!isOwner&&(pl.new.crew||[]).includes(me.key))notify(pl.new);load()})
+   .on("postgres_changes",{event:"*",schema:"public",table:"payouts"},load).on("postgres_changes",{event:"*",schema:"public",table:"receipts"},load).on("postgres_changes",{event:"*",schema:"public",table:"bonuses"},load).subscribe(s=>{if(s!=="SUBSCRIBED")setSt("X")});
+}
+async function load(){
+  const[a,b,c,d]=await Promise.all([sb.from("washes").select("*"),sb.from("payouts").select("*"),sb.from("receipts").select("*"),sb.from("bonuses").select("*")]);rcpts=c.data||[];bons=d.data||[];
+  if(a.error){setSt("X");return}
+  washes=a.data;paid={};(b.data||[]).forEach(r=>{if(r.paid)paid[r.id]=1});setSt("OK");render();
+}
+function notify(w){const a=$("#alert");a.textContent=`New wash: ${w.date} ${w.time} — ${w.address}`;a.style.display="block";setTimeout(()=>a.style.display="none",8000)}
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{tab=b.dataset.t;document.querySelectorAll("nav button").forEach(x=>x.classList.toggle("on",x==b));render()});
+const maps=a=>"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a);
+const mine=w=>isOwner||(w.crew||[]).includes(me.key);
+const dl=w=>isOwner?`<button class="g" style="color:#d93025" onclick="del('${w.id}')">Delete</button>`:"";
+function card(w,extra=""){return `<div class="card"><div class="row"><b>${esc(w.time)} · ${esc(w.client||"Client")}</b><span class="tag ${w.done?"done":""}">${w.done?"Done":"Scheduled"}</span></div>
+<div class="mu">${esc(w.date)} · ${(w.crew||[]).map(k=>STAFF[k]).join(" + ")}${w.car?" · "+esc(w.car)+(w.svc?" – "+esc(w.svc):"")+" ("+money(w.price)+")":""}${w.car&&!isOwner&&(w.crew||[]).includes(me.key)?" · You earn "+money(w.price*.4/w.crew.length):""}</div>
+<div style="margin:6px 0"><a href="${maps(w.address)}" target="_blank" rel="noopener" style="color:var(--ac)">📍 ${esc(w.address)}</a></div>${w.phone?`<div style="margin:6px 0"><a href="tel:${esc(String(w.phone).replace(/[^\d+]/g,""))}" style="color:var(--ac)">📞 ${esc(w.phone)}</a></div>`:""}${extra}</div>`}
+function render(){
+  if(!me)return;const m=$("#m"),srt=(a,b)=>(a.date+a.time).localeCompare(b.date+b.time);
+  if(tab==="cal"){
+    const list=washes.filter(mine).sort(srt);let h="";
+    if(isOwner)h+=`<h2>New wash</h2><div class="card"><input id="cl" placeholder="Client name"><input id="ph" type="tel" placeholder="Client phone number"><input id="ad" placeholder="Address (opens in Google Maps)"><div class="grid"><input id="dt" type="date" value="${today()}"><input id="tm" type="time" value="09:00"></div>
+<select id="as"><option value="festus">Festus</option><option value="mateo">Mateo</option><option value="festus,mateo">Festus + Mateo</option></select>
+<select id="sv" onchange="refill('cr','sv',1)">${SVC.map(s=>`<option>${s}</option>`).join("")}</select><select id="cr">${opts(SVC[0],"",1)}</select><button class="big" onclick="addWash()">Add to calendar</button></div>`;
+    const up=list.filter(w=>w.date>=today()&&!w.done),past=list.filter(w=>w.date<today()||w.done).reverse();
+    h+="<h2>Upcoming</h2>"+(up.map(w=>card(w,dl(w))).join("")||'<div class="mu">Nothing scheduled.</div>');
+    h+="<h2>Completed / past</h2>"+(past.slice(0,15).map(w=>card(w,dl(w))).join("")||'<div class="mu">None yet.</div>');
+    m.innerHTML=h;
+  }else if(tab==="log"){
+    const open=washes.filter(w=>!w.done&&mine(w)).sort(srt);
+    m.innerHTML="<h2>Wash to complete</h2>"+(open.map(w=>card(w,`<select id="s${w.id}" onchange="chg('${w.id}')">${SVC.map(s=>`<option ${w.svc===s?"selected":""}>${s}</option>`).join("")}</select><select id="c${w.id}" onchange="pay('${w.id}')">${opts(w.svc||SVC[0],w.car)}</select><input id="t${w.id}" type="number" min="0" step="0.5" placeholder="Tip (R) — 100% to the employee"><div class="mu" id="p${w.id}" style="margin-bottom:8px">${payTxt(w,w.car||firstCar(w.svc||SVC[0]),w.svc||SVC[0])}</div><button class="big" onclick="finish('${w.id}')">Mark complete</button>`)).join("")||'<div class="mu">No open washes.</div>');
+  }else if(tab==="pay"){m.innerHTML=payHtml()}else{
+    const ms=washes.filter(w=>w.done&&w.date.startsWith(sel));
+    const earn=k=>ms.filter(w=>w.crew.includes(k)).reduce((s,w)=>s+w.price*.4/w.crew.length,0);
+    const tips=k=>ms.filter(w=>w.crew.includes(k)).reduce((s,w)=>s+(+w.tip||0)/w.crew.length,0);
+    const bon=k=>bons.filter(b=>b.emp===k&&b.bonus_date.startsWith(sel)).reduce((s,b)=>s+ +b.amount,0);const cnt=k=>ms.filter(w=>w.crew.includes(k)).length,rev=ms.reduce((s,w)=>s+(+w.price||0),0);
+    const btn=(k,p,t)=>`<button class="big" style="margin-top:10px;${p?'background:var(--bd);color:var(--tx)':''}" onclick="togglePaid('${k}')">${p?t+' · Undo':'Mark as paid'}</button>`;
+    const tg=p=>p?'<span class="tag done">Paid ✓</span>':'<span class="tag">Unpaid</span>';
+    const emp=k=>{const p=paid[sel+"_"+k];return `<div class="card"><div class="row"><b>${STAFF[k]}</b></div><div class="grid" style="margin-top:8px"><div><div class="stat">${money(earn(k))}</div><div class="mu">Pay</div></div><div><div class="stat">${money(tips(k))}</div><div class="mu">Tips</div></div></div><div style="margin-top:10px"><div class="stat">${money(earn(k)+tips(k)+bon(k))}</div><div class="mu">Total (pay + tips + bonus) · ${cnt(k)} washes</div></div></div>`};
+    let h=`<h2>Month</h2><input type="month" value="${sel}" onchange="sel=this.value||month();render()">`;
+    if(isOwner){const po=paid[sel+"_owner"],bm=bons.reduce((s,b)=>s+(b.bonus_date.startsWith(sel)?+b.amount:0),0);h+=`<div class="card"><div class="row"><b>Business</b>${tg(po)}</div><div class="grid" style="margin-top:8px"><div><div class="stat">${money(rev)}</div><div class="mu">Total revenue</div></div><div><div class="stat">${money(rev*.5-bm)}</div><div class="mu">Your profit (50%${bm?" minus bonuses":""})</div></div><div style="margin-top:10px"><div class="stat">${money(rev*.1)}</div><div class="mu">Business expenses (10%)</div></div><div style="margin-top:10px"><div class="stat">${ms.length}</div><div class="mu">Washes</div></div></div>${btn('owner',po,'Profit paid')}</div>`+emp("festus")+emp("mateo")}
+    else h+=emp(me.key);
+    m.innerHTML=h;
+  }
+}
+async function addWash(){
+  const v=id=>$(id).value.trim();if(!v("#ad")||!v("#dt"))return alert("Add an address and date.");
+  const car=v("#cr"),svc=v("#sv");
+  const{error}=await sb.from("washes").insert({client:v("#cl"),phone:v("#ph"),address:v("#ad"),date:v("#dt"),time:v("#tm"),crew:v("#as").split(","),car,svc,price:car?P(car,svc):0});
+  if(error)alert("Couldn't save: "+error.message);load();
+}
+async function finish(id){const car=$("#c"+id).value,svc=$("#s"+id).value,tip=+$("#t"+id).value||0;
+  const{error}=await sb.from("washes").update({car,svc,price:P(car,svc),tip,done:true,done_by:me.key}).eq("id",id);
+  if(error)alert("Couldn't save: "+error.message);load();}
+async function del(id){if(!confirm("Delete this wash? This cannot be undone."))return;const{error}=await sb.from("washes").delete().eq("id",id);if(error)alert("Couldn't delete: "+error.message);load()}
+async function togglePaid(k){const id=sel+"_"+k;const{error}=await sb.from("payouts").upsert({id,paid:!paid[id]});if(error)alert("Couldn't save: "+error.message);load()}
+const mon=s=>{const d=new Date(s+"T00:00:00Z");d.setUTCDate(d.getUTCDate()-(d.getUTCDay()+6)%7);return d.toISOString().slice(0,10)};
+const sun=m=>{const d=new Date(m+"T00:00:00Z");d.setUTCDate(d.getUTCDate()+6);return d.toISOString().slice(0,10)};
+const fmt=s=>new Date(s+"T00:00:00Z").toLocaleDateString("en-ZA",{day:"numeric",month:"short",year:"numeric",timeZone:"UTC"});
+function wkAmt(k,ws){const we=sun(ws),ms=washes.filter(w=>w.done&&w.date>=ws&&w.date<=we&&w.crew.includes(k));const bl=bons.filter(b=>b.emp===k&&b.bonus_date>=ws&&b.bonus_date<=we);return{we,bl,bonus:bl.reduce((s,b)=>s+ +b.amount,0),n:ms.length,pay:ms.reduce((s,w)=>s+w.price*.4/w.crew.length,0),tips:ms.reduce((s,w)=>s+(+w.tip||0)/w.crew.length,0)}}
+const rc=r=>`<div class="card"><div class="row"><b>Pay receipt</b><span class="tag done">Paid ✓</span></div><div class="mu">${STAFF[r.emp]} · Week ${fmt(r.week_start)} – ${fmt(r.week_end)}</div><div class="mu">Paid on ${fmt(r.pay_date)}</div><div class="grid" style="margin-top:8px"><div><div class="stat">${money(r.pay)}</div><div class="mu">Pay (from washes)</div></div><div><div class="stat">${money(r.tips)}</div><div class="mu">Tips</div></div></div>${+r.bonus?`<div style="margin-top:10px"><div class="stat">${money(r.bonus)}</div><div class="mu">Bonus</div></div>`:""}<div style="margin-top:10px"><div class="stat">${money(+r.pay+ +r.tips+ +(r.bonus||0))}</div><div class="mu">Total · ${r.washes} washes</div></div>${isOwner?`<button class="g" style="color:#d93025" onclick="undoPaid('${r.id}')">Delete receipt</button>`:""}</div>`;
+function payHtml(){
+  const ws=mon(wkd),k=isOwner?ptab:me.key,a=wkAmt(k,ws),r=rcpts.find(x=>x.emp===k&&x.week_start===ws);
+  let h=`<h2>Week</h2><input type="date" value="${wkd}" onchange="wkd=this.value||today();render()"><div class="mu" style="margin:-4px 2px 8px">Monday to Sunday: ${fmt(ws)} – ${fmt(a.we)}</div>`;
+  if(isOwner)h+=`<div class="grid" style="margin-bottom:8px">${["festus","mateo"].map(x=>`<button class="big" style="${ptab===x?'':'background:var(--bd);color:var(--tx)'}" onclick="ptab='${x}';render()">${STAFF[x]}</button>`).join("")}</div>`;
+  h+=`<div class="card"><div class="row"><b>${isOwner?STAFF[k]+" · ":""}This week</b>${r?'<span class="tag done">Paid ✓</span>':'<span class="tag">Unpaid</span>'}</div><div class="grid" style="margin-top:8px"><div><div class="stat">${money(a.pay)}</div><div class="mu">Pay</div></div><div><div class="stat">${money(a.tips)}</div><div class="mu">Tips</div></div></div><div style="margin-top:10px"><div class="stat">${money(a.bonus)}</div><div class="mu">Bonus</div></div><div style="margin-top:10px"><div class="stat">${money(a.pay+a.tips+a.bonus)}</div><div class="mu">Total · ${a.n} washes</div></div>`;
+  if(r)h+=`<div class="mu" style="margin-top:8px">Paid on ${fmt(r.pay_date)}</div>`;
+  else if(isOwner)h+=`<div class="mu" style="margin-top:10px">Pay date</div><input id="pd" type="date" value="${today()}"><button class="big" onclick="markPaid('${k}','${ws}')">Mark as paid</button>`;
+  h+="</div>"+bonusHtml(k,ws,a,r)+"<h2>Receipts</h2>"+(rcpts.filter(x=>x.emp===k).sort((x,y)=>y.week_start.localeCompare(x.week_start)).map(rc).join("")||'<div class="mu">No receipts yet.</div>');
+  return h;
+}
+function bonusHtml(k,ws,a,r){
+  let h=(a.bl.length||(isOwner&&!r))?"<h2>Bonuses</h2>":"";
+  h+=a.bl.map(b=>`<div class="card"><div class="row"><b>${money(b.amount)}</b>${isOwner&&!r?`<button class="g" style="color:#d93025" onclick="delBonus('${b.id}')">Delete</button>`:""}</div><div class="mu">${esc(b.note||"Bonus")} · ${fmt(b.bonus_date)}</div></div>`).join("");
+  if(isOwner&&!r)h+=`<div class="card"><input id="ba" type="number" min="0" step="1" placeholder="Bonus amount (R)"><input id="bn" placeholder="Reason (optional)"><div class="mu" style="margin-bottom:8px">This comes out of your 50% profit.</div><button class="big" onclick="addBonus('${k}','${ws}','${a.we}')">Give bonus</button></div>`;
+  return h}
+async function addBonus(k,ws,we){const amt=+$("#ba").value;if(!(amt>0))return alert("Enter a bonus amount.");const t=today(),d=(t>=ws&&t<=we)?t:we;
+  const{error}=await sb.from("bonuses").insert({emp:k,amount:amt,note:$("#bn").value.trim(),bonus_date:d});if(error)alert("Couldn't save: "+error.message);load()}
+async function delBonus(id){if(!confirm("Delete this bonus?"))return;const{error}=await sb.from("bonuses").delete().eq("id",id);if(error)alert("Couldn't delete: "+error.message);load()}
+async function markPaid(k,ws){const a=wkAmt(k,ws);if(!a.n&&!a.bonus)return alert("No completed washes or bonuses that week.");
+  const{error}=await sb.from("receipts").insert({emp:k,week_start:ws,week_end:a.we,pay_date:$("#pd").value||today(),pay:a.pay,tips:a.tips,bonus:a.bonus,washes:a.n});
+  if(error)alert("Couldn't save: "+error.message);load()}
+async function undoPaid(id){if(!confirm("Delete this receipt? The week will show as unpaid again."))return;const{error}=await sb.from("receipts").delete().eq("id",id);if(error)alert("Couldn't delete: "+error.message);load()}
+boot();
+</script></body></html>
